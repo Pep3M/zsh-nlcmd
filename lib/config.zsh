@@ -39,3 +39,19 @@
 # --- Estado en disco -------------------------------------------------------
 : ${NLCMD_STATE_DIR:=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/zsh-nlcmd-$UID}
 : ${NLCMD_CACHE_DIR:=${XDG_CACHE_HOME:-$HOME/.cache}/zsh-nlcmd}
+
+# --- Directorios de trabajo -------------------------------------------------
+# Crea un directorio privado rechazándolo si es un enlace simbólico o si no nos
+# pertenece. Sin esto, con TMPDIR sin definir el estado cae en /tmp y otro
+# usuario local puede dejar preparado un enlace hacia, por ejemplo, ~/.zshrc
+# para que lo truncáramos al escribir.
+_nlcmd_secure_dir() {
+  local d=$1
+  [[ -L $d ]] && return 1
+  if [[ ! -d $d ]]; then
+    mkdir -p -m 700 -- $d 2>/dev/null || return 1
+  fi
+  [[ -d $d && ! -L $d && -O $d ]] || return 1
+  chmod 700 -- $d 2>/dev/null
+  return 0
+}

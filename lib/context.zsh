@@ -33,5 +33,7 @@ nlcmd_context() {
     [[ -n $entries ]] && parts+=("ficheros: $entries")
   fi
 
-  print -r -- "${(F)parts}"
+  # Nombres de rama y rutas son texto que no controlamos y que acaba dentro del
+  # prompt del modelo: se les quitan los caracteres de control.
+  print -r -- "${${(F)parts}//[[:cntrl:]]/ }"
 }

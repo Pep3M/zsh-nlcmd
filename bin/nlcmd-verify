@@ -2,6 +2,10 @@
 # nlcmd-verify <gen> <intención> <comando>
 # Envuelve verify/verify.mjs y prefija la generación para que el widget pueda
 # descartar veredictos que ya no corresponden al buffer actual.
+#
+# La intención y el comando se le pasan a node por la entrada estándar, no como
+# argumentos: argv es legible por cualquier usuario de la máquina con `ps`, y
+# la intención es literalmente lo que la persona está escribiendo.
 
 emulate -L zsh
 local here=${0:A:h}
@@ -16,10 +20,12 @@ fi
 
 local verdict
 verdict=$(
+  print -r -- "${intent//[[:cntrl:]]/ }
+${cmd//[[:cntrl:]]/ }" |
   NLCMD_VERIFY_MODEL=$NLCMD_VERIFY_MODEL \
   NLCMD_DANGER_THRESHOLD=$NLCMD_DANGER_THRESHOLD \
   AI_GATEWAY_API_KEY=${(P)NLCMD_API_KEY_VAR} \
-  node "$here/../verify/verify.mjs" "$intent" "$cmd" 2>/dev/null
+  node "$here/../verify/verify.mjs" 2>/dev/null
 )
 
 print -r -- "$gen	${verdict:-skip sin respuesta}"

@@ -84,7 +84,7 @@ _nlcmd_after_modify() {
   [[ -n $_NLCMD_SUGGESTION && $q == $_NLCMD_LAST_Q ]] && return
 
   (( _NLCMD_GEN++ ))
-  mkdir -p $NLCMD_STATE_DIR 2>/dev/null
+  _nlcmd_secure_dir $NLCMD_STATE_DIR || return
   print -r -- $_NLCMD_GEN > $NLCMD_STATE_DIR/gen
 
   _nlcmd_close _NLCMD_FD
@@ -95,7 +95,7 @@ _nlcmd_after_modify() {
 
   _NLCMD_PENDING_Q=$q
   _nlcmd_log "fire gen=$_NLCMD_GEN q=[$q]"
-  exec {_NLCMD_FD}< <( $NLCMD_ROOT/bin/nlcmd-fetch $_NLCMD_GEN "$q" 2>/dev/null )
+  exec {_NLCMD_FD}< <( "$NLCMD_ROOT/bin/nlcmd-fetch" $_NLCMD_GEN "$q" 2>/dev/null )
   zle -F $_NLCMD_FD _nlcmd_on_result
 }
 
@@ -129,7 +129,7 @@ _nlcmd_on_result() {
 
   # El comando ya se ve; la verificación viaja detrás sin bloquear nada.
   if [[ $NLCMD_VERIFY == 1 ]] && command -v node &>/dev/null; then
-    exec {_NLCMD_VFD}< <( $NLCMD_ROOT/bin/nlcmd-verify $_NLCMD_GEN "$_NLCMD_LAST_Q" "$payload" 2>/dev/null )
+    exec {_NLCMD_VFD}< <( "$NLCMD_ROOT/bin/nlcmd-verify" $_NLCMD_GEN "$_NLCMD_LAST_Q" "$payload" 2>/dev/null )
     zle -F $_NLCMD_VFD _nlcmd_on_verdict
   fi
 }

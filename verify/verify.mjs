@@ -3,12 +3,15 @@
 // Jev solo es accesible vía AI SDK 7+ (no hay endpoint REST: la documentación
 // de Vercel lo dice explícitamente), de ahí que esta pieza sea Node y no curl.
 //
-// Entrada  (argv): <intención en lenguaje natural> <comando propuesto>
+// Entrada  (stdin): dos líneas — la intención y el comando propuesto. Van por
+//                   stdin y no por argv porque argv lo puede leer cualquier
+//                   usuario de la máquina con `ps`.
 // Salida  (stdout): "danger <prob>" | "ok <prob>" | "skip <motivo>"
 
 import { experimental_evaluate as evaluate } from 'ai';
+import { readFileSync } from 'node:fs';
 
-const [intent, command] = process.argv.slice(2);
+const [intent, command] = readFileSync(0, 'utf8').split('\n');
 
 if (!intent || !command) {
   process.stdout.write('skip faltan argumentos\n');

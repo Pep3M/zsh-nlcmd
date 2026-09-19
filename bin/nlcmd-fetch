@@ -32,7 +32,7 @@ if command -v shasum &>/dev/null; then
 elif command -v sha256sum &>/dev/null; then
   key=$(print -r -- "$NLCMD_MODEL|$PWD|$query" | sha256sum | cut -c1-32)
 fi
-if [[ -n ${key:-} && -r $NLCMD_CACHE_DIR/$key ]]; then
+if [[ -n ${key:-} ]] && _nlcmd_secure_dir $NLCMD_CACHE_DIR && [[ -r $NLCMD_CACHE_DIR/$key ]]; then
   out "$(<$NLCMD_CACHE_DIR/$key)"
   exit 0
 fi
@@ -70,13 +70,27 @@ payload=$(jq -n \
     temperature:0,
     max_tokens:300}') || { out '!jq falló al construir la petición'; exit 0 }
 
+# Ni la clave ni la petición viajan por argv: los argumentos de un proceso los
+# puede leer cualquier usuario de la máquina con `ps`. La cabecera entra por la
+# entrada estándar (-K -) y el cuerpo por un fichero temporal privado.
+local body
+body=$(mktemp "${TMPDIR:-/tmp}/nlcmd-req.XXXXXX") || { out '!no se pudo crear el temporal'; exit 0 }
+chmod 600 -- $body 2>/dev/null
+trap 'rm -f -- $body' EXIT INT TERM
+print -r -- "$payload" > $body
+
+# En el fichero de configuración de curl los valores van entre comillas, así que
+# hay que escapar barras y comillas por si la clave las contiene.
+local escaped=${${api_key//\\/\\\\}//\"/\\\"}
+
 local resp http_code
-resp=$(curl -sS --max-time $NLCMD_TIMEOUT \
+resp=$(print -r -- "header = \"Authorization: Bearer $escaped\"" | curl -sS -K - \
+  --max-time $NLCMD_TIMEOUT \
   -w $'\n%{http_code}' \
   "$NLCMD_BASE_URL/chat/completions" \
-  -H "Authorization: Bearer $api_key" \
   -H 'Content-Type: application/json' \
-  -d "$payload" 2>&1)
+  --data-binary @$body 2>&1)
+rm -f -- $body
 
 http_code=${resp##*$'\n'}
 resp=${resp%$'\n'*}
@@ -99,8 +113,13 @@ cmd=$(print -r -- "$resp" | jq -r '.choices[0].message.content // empty' 2>/dev/
 [[ -z $cmd ]] && { out '!respuesta vacía'; exit 0 }
 
 # --- Saneado: los modelos meten fences y prefijos pese a las instrucciones.
-cmd=${cmd//$'\r'/}
+# Primero se reduce a una sola línea (aquí los saltos aún hacen falta para
+# distinguir el fence del comando)...
 cmd=$(print -r -- "$cmd" | sed -e '/^[[:space:]]*```/d' | grep -v '^[[:space:]]*$' | head -1)
+# ...y solo entonces se eliminan los caracteres de control que queden. Un
+# comando legítimo no contiene ninguno; ZLE ya los mostraría escapados, pero se
+# quitan igualmente para que no lleguen nunca al buffer.
+cmd=${cmd//[[:cntrl:]]/}
 cmd=${cmd##[[:space:]]#}
 cmd=${cmd%%[[:space:]]#}
 cmd=${cmd#\$ }
@@ -108,8 +127,8 @@ cmd=${cmd#% }
 
 [[ -z $cmd || $cmd == UNSUPPORTED ]] && { out '!sin equivalente en shell'; exit 0 }
 
-if [[ -n ${key:-} ]]; then
-  mkdir -p $NLCMD_CACHE_DIR 2>/dev/null && print -r -- "$cmd" > $NLCMD_CACHE_DIR/$key
+if [[ -n ${key:-} ]] && _nlcmd_secure_dir $NLCMD_CACHE_DIR; then
+  print -r -- "$cmd" > $NLCMD_CACHE_DIR/$key
 fi
 
 out "$cmd"

@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # install.sh — instalación sin gestor de plugins.
 #
-#   git clone https://github.com/USUARIO/zsh-nlcmd && ./zsh-nlcmd/install.sh
+#   git clone https://github.com/Pep3M/zsh-nlcmd && ./zsh-nlcmd/install.sh
 #
 # Si usas zinit, antidote, oh-my-zsh o similar, NO necesitas esto: mira el
 # README. Este script solo clona el repositorio y te dice qué añadir a .zshrc;
@@ -10,7 +10,7 @@
 set -eu
 
 DEST="${NLCMD_DEST:-${XDG_DATA_HOME:-$HOME/.local/share}/zsh-nlcmd}"
-REPO="${NLCMD_REPO:-https://github.com/USUARIO/zsh-nlcmd.git}"
+REPO="${NLCMD_REPO:-https://github.com/Pep3M/zsh-nlcmd.git}"
 LINE="source $DEST/zsh-nlcmd.plugin.zsh"
 
 for dep in zsh git curl jq; do
