@@ -50,9 +50,35 @@ nlcmd() {
       print "contexto enviado:"
       nlcmd_context | sed 's/^/  /'
       ;;
+    test)
+      # Petición real, con la respuesta del servidor tal cual. Es el único modo
+      # de distinguir clave inválida, modelo no disponible y presupuesto agotado.
+      local key=${(P)NLCMD_API_KEY_VAR}
+      if [[ -z $key ]]; then
+        print -u2 "No hay clave: exporta \$$NLCMD_API_KEY_VAR"
+        return 1
+      fi
+      print "POST $NLCMD_BASE_URL/chat/completions  (modelo: $NLCMD_MODEL)"
+      local body resp code
+      body=$(jq -n --arg m "$NLCMD_MODEL" \
+        '{model:$m, messages:[{role:"user",content:"di ok"}], max_tokens:5}')
+      resp=$(print -r -- "header = \"Authorization: Bearer ${${key//\\/\\\\}//\"/\\\"}\"" |
+        curl -sS -K - --max-time 15 -w $'\n%{http_code}' \
+          "$NLCMD_BASE_URL/chat/completions" \
+          -H 'Content-Type: application/json' --data-binary "$body" 2>&1)
+      code=${resp##*$'\n'}; resp=${resp%$'\n'*}
+      print "HTTP $code"
+      print -r -- "${$(print -r -- "$resp" | jq . 2>/dev/null):-$resp}"
+      case $code in
+        200) print "\nLa clave y el modelo funcionan." ;;
+        401) print "\nLa clave no es válida. Genera una nueva en:\n  https://vercel.com/d/stores/ai-gateway" ;;
+        403) print "\nClave válida pero sin permiso para este modelo, o presupuesto agotado." ;;
+        404) print "\nEse modelo no existe en el gateway. Lista disponibles en:\n  https://vercel.com/ai-gateway/models" ;;
+      esac
+      ;;
     clear-cache)
       rm -rf -- $NLCMD_CACHE_DIR && print "caché borrada: $NLCMD_CACHE_DIR" ;;
     *)
-      print "uso: nlcmd {doctor|clear-cache}" ;;
+      print "uso: nlcmd {doctor|test|clear-cache}" ;;
   esac
 }

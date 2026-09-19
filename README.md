@@ -60,8 +60,12 @@ export AI_GATEWAY_API_KEY='...'   # https://vercel.com/docs/ai-gateway
 Comprueba que todo está en su sitio:
 
 ```zsh
-nlcmd doctor
+nlcmd doctor   # configuración y qué contexto saldría de tu máquina
+nlcmd test     # petición real: enseña el HTTP y la respuesta del servidor tal cual
 ```
+
+`nlcmd test` es lo que distingue una clave mal escrita de un modelo no
+disponible o un presupuesto agotado: los tres fallan igual desde el prompt.
 
 ## Configuración
 

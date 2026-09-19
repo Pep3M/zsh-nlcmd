@@ -98,12 +98,18 @@ resp=${resp%$'\n'*}
 if [[ $http_code != 200 ]]; then
   local msg
   msg=$(print -r -- "$resp" | jq -r '.error.message // empty' 2>/dev/null)
+  # El mensaje del servidor es lo único que distingue "clave mal escrita" de
+  # "modelo no disponible" o "presupuesto agotado": nunca hay que descartarlo.
   if [[ $http_code == 000 ]]; then
     out '!sin conexión'
-  elif [[ $http_code == 401 || $http_code == 403 ]]; then
-    out "!clave rechazada (\$$NLCMD_API_KEY_VAR)"
+  elif [[ -n $msg ]]; then
+    out "!$http_code: $msg"
+  elif [[ $http_code == 401 ]]; then
+    out "!clave rechazada (\$$NLCMD_API_KEY_VAR) — prueba 'nlcmd test'"
+  elif [[ $http_code == 403 ]]; then
+    out "!403 sin permiso — prueba 'nlcmd test'"
   else
-    out "!HTTP $http_code${msg:+: $msg}"
+    out "!HTTP $http_code"
   fi
   exit 0
 fi
