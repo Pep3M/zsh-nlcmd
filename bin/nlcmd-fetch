@@ -1,0 +1,115 @@
+#!/usr/bin/env zsh
+# nlcmd-fetch <gen> <consulta>
+#
+# Espera el debounce, aborta si ha llegado una pulsación más nueva, consulta al
+# modelo generador y escribe "<gen>\t<comando>" en stdout.
+# Los errores salen como "<gen>\t!<mensaje>".
+#
+# Ejecutable por sí solo:  NLCMD_DEBOUNCE=0 bin/nlcmd-fetch 1 "listar puertos abiertos"
+
+emulate -L zsh
+setopt no_unset pipe_fail extended_glob
+
+local here=${0:A:h}
+source "$here/../lib/config.zsh"
+source "$here/../lib/context.zsh"
+
+local gen=$1 query=$2
+out() { print -r -- "$gen	$*" }
+
+# --- Debounce: si mientras dormíamos llegó otra pulsación, esta petición sobra.
+if [[ $NLCMD_DEBOUNCE != 0 ]]; then
+  sleep $NLCMD_DEBOUNCE
+  if [[ -r $NLCMD_STATE_DIR/gen ]] && [[ $(<$NLCMD_STATE_DIR/gen) != $gen ]]; then
+    exit 0
+  fi
+fi
+
+# --- Caché: misma consulta en el mismo directorio devuelve lo mismo, gratis.
+local key cached
+if command -v shasum &>/dev/null; then
+  key=$(print -r -- "$NLCMD_MODEL|$PWD|$query" | shasum -a 256 | cut -c1-32)
+elif command -v sha256sum &>/dev/null; then
+  key=$(print -r -- "$NLCMD_MODEL|$PWD|$query" | sha256sum | cut -c1-32)
+fi
+if [[ -n ${key:-} && -r $NLCMD_CACHE_DIR/$key ]]; then
+  out "$(<$NLCMD_CACHE_DIR/$key)"
+  exit 0
+fi
+
+# --- Clave de API
+local api_key=${(P)NLCMD_API_KEY_VAR:-}
+if [[ -z $api_key ]]; then
+  out "!falta \$$NLCMD_API_KEY_VAR"
+  exit 0
+fi
+
+local system='Traduces peticiones en lenguaje natural a UN solo comando de shell ejecutable.
+
+Reglas estrictas:
+- Responde EXCLUSIVAMENTE con el comando. Sin explicación, sin markdown, sin comillas envolventes, sin backticks, sin prefijo "$".
+- Una sola línea. Encadena con && o | si hace falta.
+- Usa las herramientas que el contexto indica como disponibles. No inventes binarios.
+- Adapta las banderas al sistema operativo del contexto (BSD/macOS y GNU/Linux difieren).
+- Prefiere la opción no destructiva. Nunca añadas -f, --force ni rm -rf si no se ha pedido explícitamente.
+- Si la petición es ambigua, elige la interpretación más común y segura.
+- Si no es posible expresarla como comando, responde exactamente: UNSUPPORTED'
+
+local user="Contexto:
+$(nlcmd_context)
+
+Petición: $query"
+
+local payload
+payload=$(jq -n \
+  --arg model "$NLCMD_MODEL" \
+  --arg system "$system" \
+  --arg user "$user" \
+  '{model:$model,
+    messages:[{role:"system",content:$system},{role:"user",content:$user}],
+    temperature:0,
+    max_tokens:300}') || { out '!jq falló al construir la petición'; exit 0 }
+
+local resp http_code
+resp=$(curl -sS --max-time $NLCMD_TIMEOUT \
+  -w $'\n%{http_code}' \
+  "$NLCMD_BASE_URL/chat/completions" \
+  -H "Authorization: Bearer $api_key" \
+  -H 'Content-Type: application/json' \
+  -d "$payload" 2>&1)
+
+http_code=${resp##*$'\n'}
+resp=${resp%$'\n'*}
+
+if [[ $http_code != 200 ]]; then
+  local msg
+  msg=$(print -r -- "$resp" | jq -r '.error.message // empty' 2>/dev/null)
+  if [[ $http_code == 000 ]]; then
+    out '!sin conexión'
+  elif [[ $http_code == 401 || $http_code == 403 ]]; then
+    out "!clave rechazada (\$$NLCMD_API_KEY_VAR)"
+  else
+    out "!HTTP $http_code${msg:+: $msg}"
+  fi
+  exit 0
+fi
+
+local cmd
+cmd=$(print -r -- "$resp" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
+[[ -z $cmd ]] && { out '!respuesta vacía'; exit 0 }
+
+# --- Saneado: los modelos meten fences y prefijos pese a las instrucciones.
+cmd=${cmd//$'\r'/}
+cmd=$(print -r -- "$cmd" | sed -e '/^[[:space:]]*```/d' | grep -v '^[[:space:]]*$' | head -1)
+cmd=${cmd##[[:space:]]#}
+cmd=${cmd%%[[:space:]]#}
+cmd=${cmd#\$ }
+cmd=${cmd#% }
+
+[[ -z $cmd || $cmd == UNSUPPORTED ]] && { out '!sin equivalente en shell'; exit 0 }
+
+if [[ -n ${key:-} ]]; then
+  mkdir -p $NLCMD_CACHE_DIR 2>/dev/null && print -r -- "$cmd" > $NLCMD_CACHE_DIR/$key
+fi
+
+out "$cmd"

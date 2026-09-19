@@ -1,0 +1,9 @@
+{
+  "name": "zsh-nlcmd-verify",
+  "private": true,
+  "type": "module",
+  "description": "Verificación semántica de comandos con Jev (TypeSafe AI) vía Vercel AI Gateway",
+  "dependencies": {
+    "ai": "^7.0.0"
+  }
+}

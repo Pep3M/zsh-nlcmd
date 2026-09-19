@@ -1,0 +1,25 @@
+#!/usr/bin/env zsh
+# nlcmd-verify <gen> <intención> <comando>
+# Envuelve verify/verify.mjs y prefija la generación para que el widget pueda
+# descartar veredictos que ya no corresponden al buffer actual.
+
+emulate -L zsh
+local here=${0:A:h}
+source "$here/../lib/config.zsh"
+
+local gen=$1 intent=$2 cmd=$3
+
+if [[ ! -d $here/../verify/node_modules ]]; then
+  print -r -- "$gen	skip sin dependencias"
+  exit 0
+fi
+
+local verdict
+verdict=$(
+  NLCMD_VERIFY_MODEL=$NLCMD_VERIFY_MODEL \
+  NLCMD_DANGER_THRESHOLD=$NLCMD_DANGER_THRESHOLD \
+  AI_GATEWAY_API_KEY=${(P)NLCMD_API_KEY_VAR} \
+  node "$here/../verify/verify.mjs" "$intent" "$cmd" 2>/dev/null
+)
+
+print -r -- "$gen	${verdict:-skip sin respuesta}"

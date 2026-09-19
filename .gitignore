@@ -1,0 +1,4 @@
+verify/node_modules/
+verify/package-lock.json
+*.log
+.DS_Store
