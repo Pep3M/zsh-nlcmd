@@ -67,6 +67,19 @@ nlcmd test     # petición real: enseña el HTTP y la respuesta del servidor tal
 `nlcmd test` es lo que distingue una clave mal escrita de un modelo no
 disponible o un presupuesto agotado: los tres fallan igual desde el prompt.
 
+## Desinstalación
+
+```zsh
+~/MyData/PersonalProjects/zsh-nlcmd/uninstall.sh
+```
+
+Quita la línea de `.zshrc` (dejando copia en `.zshrc.nlcmd-backup`), borra la
+caché y el estado, y te dice cómo eliminar el repositorio. **Conserva tu clave
+de API** salvo que pases `--purge-key`, por si la usas para otra cosa.
+
+La sesión abierta sigue teniendo los widgets en memoria; `exec zsh` la deja
+limpia sin cerrar la terminal.
+
 ## Configuración
 
 Declara las variables **antes** de cargar el plugin.

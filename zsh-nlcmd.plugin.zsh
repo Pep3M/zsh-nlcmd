@@ -72,7 +72,17 @@ nlcmd() {
       case $code in
         200) print "\nLa clave y el modelo funcionan." ;;
         401) print "\nLa clave no es válida. Genera una nueva en:\n  https://vercel.com/d/stores/ai-gateway" ;;
-        403) print "\nClave válida pero sin permiso para este modelo, o presupuesto agotado." ;;
+        403)
+          # El 403 más común no es falta de permisos: es que Vercel exige una
+          # tarjeta registrada para liberar los créditos gratuitos.
+          if [[ $resp == *customer_verification_required* ]]; then
+            print "\nLa clave es válida. Vercel pide una tarjeta registrada para"
+            print "desbloquear los créditos gratuitos (no cobra por ello):"
+            print "  https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai%3Fmodal%3Dadd-credit-card"
+          else
+            print "\nClave válida pero sin permiso para este modelo, o presupuesto agotado."
+          fi
+          ;;
         404) print "\nEse modelo no existe en el gateway. Lista disponibles en:\n  https://vercel.com/ai-gateway/models" ;;
       esac
       ;;
